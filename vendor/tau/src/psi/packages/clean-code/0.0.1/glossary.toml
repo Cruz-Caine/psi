@@ -1,0 +1,13 @@
+# clean-code package glossary — vocabulary referenced by THIS package's rules.
+# Package terms ship with the package; user (~/.psi/glossary.toml) and project
+# (.psi/glossary/*.toml) tiers override per term id.
+
+[[term]]
+id = "config-surgery"
+definition = "Modifying a tool's installed or configuration files in place with text substitution (sed, awk, perl, regex rewrite) instead of using that tool's documented configuration or extension mechanism (user config path, env var, CLI flag, plugin API) or patching its local source."
+source = "CC-060, mined from the attempt-5 catalog-override failure"
+
+[[term]]
+id = "mechanism-check"
+definition = "Evidence in the session record that a tool's documented configuration or extension mechanism was consulted before mutating the tool: a docs/README read, a --help run, an edit to a documented user-config path, or a fact-store entry naming the mechanism."
+source = "CC-060 retrieve node"

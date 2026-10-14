@@ -1,0 +1,21 @@
+# secrets
+.env
+
+# local artifacts (never redistribute)
+jobs/
+deepswe/
+eval/deep-swe/tasks/
+vendor/dist/
+psi-live-telemetry.jsonl
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# worktrees / tooling state
+.letta/
+*.log
+
+eval/deep-swe/
+spike/tau/

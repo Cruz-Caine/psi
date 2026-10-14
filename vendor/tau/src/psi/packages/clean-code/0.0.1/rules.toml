@@ -1,0 +1,191 @@
+# ψ seed rule package: clean-code v0.1.0 (stdlib tier)
+# Format: TOML ([[rule]] entries) — stdlib tomllib, zero-dependency (D13).
+# Every rule: typed question + threshold + severity + provenance.
+# Stdlib defaults to advisory severity; blocking is an explicit promotion.
+# Round-27 lesson applied: CC-014's path gate was language-dead on TS/Go/Rust
+# repos — duplication checking is language-agnostic, so it now gates on tool
+# only and lets Jev judge duplication from the session state.
+#
+# CC-060 (2026-10-13): first rule mined from a REAL failure trace — our own.
+# psi-eval attempt 5 lost 18/20 trials because the adapter mutated tau's
+# catalog via find+cp+sed instead of tau's documented user-overlay mechanism
+# (~/.tau/catalog.toml), even though the tau source was cloned locally. The
+# error class is "config surgery": text-rewriting another system's config or
+# installed files when a supported override/extension mechanism exists (or
+# was never checked).
+#
+# SHAPE: question CHAIN (user design, round 28) — recognition, retrieval,
+# judgment. An atomized question cannot carry the diligence clause: it would
+# ask Jev to confirm an ABSENCE ("without evidence that a mechanism was
+# checked") from a state digest that may legitimately not carry that
+# evidence — the round-23 noise-floor trap. The chain makes the retrieval
+# node's answer (including explicit "no evidence") a STATED FACT injected
+# into the judge node's state. Benign actions exit at node 0 (one question).
+# NOTE: the retrieve node is only as good as the capture side — fact store /
+# ledger must record mechanism-check events (docs reads, config-path use).
+# Threshold/probe semantics: the terminal answer flows through evaluate()
+# with the advisory tier threshold; the rule's `threshold` field is inert.
+# Jev choice-field name for retrieve nodes unverified live — calibrate.
+
+[[rule]]
+id = "CC-060"
+type = "chain"
+question = ""
+applies_to = ["bash"]
+threshold = 0.75
+severity = "advisory"
+remedy = "Before text-rewriting a tool's config or installed files, check for its supported override mechanism (user config path, env var, CLI flag, extension API) or edit its local source instead."
+description = "Prefer a tool's supported configuration/extension mechanism over in-place text surgery of its files."
+
+[[rule.chain]]
+role = "recognize"
+type = "noul"
+inputs = ["action"]
+instructions = "Does the proposed bash command modify files in place using text substitution (sed -i, awk in-place rewrite, perl -i, or regex substitution) on a configuration or installed file of a tool, rather than on the task's own project files? High probability means yes, it is [[config-surgery]]."
+exit_below = 0.50
+
+[[rule.chain]]
+role = "retrieve"
+type = "choice"
+inputs = ["action", "session"]
+instructions = "Which statement best describes what the session record shows about the configuration or extension mechanism (user config path, environment variable, CLI flag, plugin or extension API, or local source) of the tool whose files the proposed command modifies?"
+choices = ["evidence of a mechanism check is on record", "no such evidence in the session"]
+exit_on = "evidence of a mechanism check is on record"
+
+[[rule.chain]]
+role = "judge"
+type = "noul"
+inputs = ["trace", "action", "request"]
+instructions = "Given the chain trace (an in-place [[config-surgery]] rewrite is proposed, and the session's [[mechanism-check]] record), is proceeding with this rewrite without verifying a supported configuration mechanism the wrong call? High probability means yes, flag it."
+
+[[rule]]
+id = "CC-014"
+type = "noul"
+question = "Does the proposed code duplicate logic that already exists in the codebase, per the session digest?"
+applies_to = ["edit", "write"]
+threshold = 0.85
+severity = "blocking"
+probe = "similar-code --top 3"
+remedy = "Reuse the existing utility instead of reimplementing it."
+description = "Prefer reusing existing utilities over reinventing them."
+
+[[rule]]
+id = "CC-001"
+type = "noul"
+question = "Does the proposed code contain hardcoded secrets, API keys, tokens, or credentials?"
+applies_to = ["edit", "write", "bash"]
+threshold = 0.90
+severity = "blocking"
+remedy = "Load secrets from environment variables or a secrets manager."
+description = "Never commit secrets into source files."
+
+[[rule]]
+id = "CC-022"
+type = "noul"
+question = "Does the proposed action add, remove, or upgrade a dependency without updating the project's lockfile or manifest accordingly?"
+threshold = 0.85
+severity = "blocking"
+remedy = "Use the project's package manager so the lockfile stays in sync."
+description = "Dependency and lockfile drift breaks reproducible builds."
+
+[[rule]]
+id = "CC-024"
+type = "noul"
+question = "Does the proposed command perform a destructive or irreversible operation (recursive deletion, force-push, dropping data, disabling safety checks) without the task requiring it?"
+applies_to = ["bash"]
+threshold = 0.80
+severity = "blocking"
+remedy = "Use the least destructive operation that accomplishes the task."
+description = "Destructive operations require explicit task justification."
+
+[[rule]]
+id = "CC-013"
+type = "noul"
+question = "Does the proposed code write secrets, tokens, credentials, or personal data into logs or printed output?"
+threshold = 0.85
+severity = "blocking"
+remedy = "Log identifiers or redacted values, never raw secrets."
+description = "Sensitive data must never reach logs or stdout."
+
+[[rule]]
+id = "CC-050"
+type = "noul"
+question = "Does the proposed action ignore an explicit constraint the user stated in user_request?"
+threshold = 0.85
+severity = "blocking"
+remedy = "Follow the user's stated constraint; if it conflicts with something, ask."
+description = "User-stated constraints outrank agent preferences."
+
+[[rule]]
+id = "CC-031"
+type = "noul"
+question = "Does the proposed edit work around broken or shoddy existing code in a way that will silently accumulate technical debt?"
+threshold = 0.80
+severity = "advisory"
+description = "Deviations from standards in legacy code should be declared, never silent."
+
+[[rule]]
+id = "CC-002"
+type = "noul"
+question = "Does the proposed code introduce hardcoded environment-specific URLs, endpoints, or hosts that the existing code loads from configuration?"
+threshold = 0.80
+severity = "advisory"
+description = "Environment-specific values belong in configuration."
+
+[[rule]]
+id = "CC-003"
+type = "noul"
+question = "Does the proposed code introduce a new TODO, FIXME, or placeholder implementation in place of the functionality the task asked for?"
+threshold = 0.80
+severity = "advisory"
+description = "Placeholders in place of required functionality fail the task."
+
+[[rule]]
+id = "CC-005"
+type = "noul"
+question = "Does the proposed edit introduce dead code (unreachable branches, commented-out code, unused functions or imports)?"
+threshold = 0.80
+severity = "advisory"
+description = "Dead code confuses the next reader."
+
+[[rule]]
+id = "CC-007"
+type = "noul"
+question = "Does the proposed code swallow errors silently (empty except blocks, ignored failure returns) where the surrounding code surfaces errors?"
+threshold = 0.80
+severity = "advisory"
+description = "Silently swallowed errors hide real failures."
+
+[[rule]]
+id = "CC-011"
+type = "noul"
+question = "Does the proposed change add new public functionality without any accompanying tests, in a codebase where the surrounding modules have tests?"
+threshold = 0.80
+severity = "advisory"
+description = "New public surface should come with tests in tested codebases."
+
+[[rule]]
+id = "CC-026"
+type = "noul"
+question = "Does the proposed change modify files or functionality clearly outside the scope stated in user_request, beyond incidental fixes?"
+threshold = 0.80
+severity = "advisory"
+description = "Stay in scope; drive-by refactors belong in their own task."
+
+[[rule]]
+id = "CC-030"
+type = "noul"
+question = "Does the proposed code add comments that contradict what the code actually does, or explain-the-obvious noise?"
+threshold = 0.80
+severity = "advisory"
+description = "Comments must match the code they annotate."
+
+[[rule]]
+id = "CC-042"
+type = "score"
+question = "How maintainable is the proposed change (0 = unreadable, 1 = poor, 2 = acceptable, 3 = clean and documented)?"
+applies_to = ["edit", "write"]
+threshold = 1.5
+severity = "advisory"
+criteria = ["0 = unreadable", "1 = poor", "2 = acceptable", "3 = clean and documented"]
+description = "Prefer changes that the next reader can follow."

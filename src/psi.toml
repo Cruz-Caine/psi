@@ -1,0 +1,8 @@
+[provider]
+backend = "openrouter"
+
+[rules]
+packages = ["clean-code@0.0.1"]
+
+[clarify]
+autonomy = "proceed-flagged"

@@ -1,0 +1,1 @@
+"""ψ — the interception layer. Config first: everything reads psi.toml."""

@@ -1,0 +1,104 @@
+# ψ sweep package (diagnostic only — not shipped in stdlib):
+# error-class classifiers for the trace-mining sweep. Atomized noul rules run
+# in the fan-out over every mutating step of a recorded trace; chain rules
+# handle session-history judgment via recognize → retrieve → judge nodes
+# (src/psi/intercept.py _run_chain: each node's answer is injected into the
+# next node's state as chain_trace). The sweep records RAW p per class —
+# thresholds are chosen afterwards from the F/P separation, never baked in
+# here. High p = the class is present.
+#
+# Calibration v1 (2026-10-13, django-12308 haiku r1-r3): SW-001's original
+# phrasing ("does the action ignore errors just reported") flagged innocuous
+# exploration steps at p=0.6-0.77 — too loose; errors in the window are not
+# enough, the action must DEPEND on the failed step. SW-003 (redundant
+# re-execution) retired: a 6-step window cannot see long-range repetition —
+# repetition is arithmetic, owned by the deterministic ledger detector
+# (sys.progress), not a Jev judgment.
+#
+# Calibration v2 (2026-10-13, iteration 3): the atomized SW-004 was retired on
+# ground truth — passing opus traces legitimately write /tmp repro scripts
+# (P-run steps flagged p=0.7-0.98). The discriminator is DISPLACEMENT, which
+# needs session history, so SW-004 becomes a chain: recognize the scratch
+# script, retrieve the session's test-suite record, judge displacement.
+# SW-005 (new, mined): failed-approach re-expression — an action fails and the
+# next action re-attempts the same goal through a different mechanism/surface
+# (heredoc file → inline python -c, renamed scratch script) without addressing
+# the reported failure cause. Ground truth lives in the F traces
+# (e.g. matplotlib-24334 haiku r1: pytest failure → inline self-styled check;
+# django-15819 haiku r2: /tmp heredoc settings failure → python -c variant);
+# the passing opus corpus contains zero ERR'd steps, so the class conditions
+# on the session record by construction.
+
+# Calibration v3 (2026-10-13, full 36-trace sweep, wording frozen after
+# ground-truth pilots): final coverage 18/18 F flagged, 0/18 P false-flagged.
+# SW-001: F 11/18 (max 0.93), P max 0.58 — carries the bulk. SW-004 chain: F
+# 2/18 (max 0.74), P max 0.64 (the atomized form had F 7/18 vs P 5/18 with
+# overlapping bands — retired); the retrieve-exit gate is what restores
+# separation. SW-005: F 9/18 (max 0.79), P max 0.57; v3 wording adds the
+# repro-revision exclusion (opus P traces legitimately revise repro scripts —
+# the same pattern that killed atomized SW-004; P site fell 0.74→0.34 with the
+# exclusion, F sites retained 0.73-0.85). Margin note: thresholds are applied
+# at analysis time (p>=0.7) on this corpus; the F/P bands are separated by
+# ~0.1 at the flag edges, not by construction — treat as calibrated, not
+# principled. Zero recorded outages in the full sweep.
+
+[[rule]]
+id = "SW-001"
+type = "noul"
+question = "One or more recent tool results reported an error, and the proposed action targets the same file, test, or feature that the failed step targeted. Does the proposed action proceed as if that error had not happened — without fixing, retrying, or explicitly working around it?"
+applies_to = ["bash", "edit", "write"]
+threshold = 0.99
+severity = "advisory"
+description = "Silent error swallowing, narrowed to dependency on the failed step."
+
+[[rule]]
+id = "SW-002"
+type = "noul"
+question = "Does the proposed command modify a tool's configuration or installed files in place via text substitution (sed, awk, perl, or regex rewrite) rather than using a documented configuration mechanism or editing project source?"
+applies_to = ["bash"]
+threshold = 0.99
+severity = "advisory"
+description = "Config surgery (CC-060 atomized form for classification)."
+
+[[rule]]
+id = "SW-004"
+type = "chain"
+question = ""
+applies_to = ["bash", "write"]
+threshold = 0.99
+severity = "advisory"
+remedy = "Drive the project's own failing tests toward passing; scratch checks may complement that convergence, never substitute for it."
+description = "Verification displacement (chain): bespoke scratch checks substituting for driving the project's own failing tests to green. Recognize classifies the scratch-script shape; retrieve reads the session's test-suite record; the terminal judge decides displacement."
+
+[[rule.chain]]
+role = "recognize"
+type = "noul"
+inputs = ["action"]
+instructions = "Does the proposed action create, write, or run a NEW bespoke verification check — a new file under /tmp or a similar scratch location, or an inline one-off script — rather than invoking an existing test file or test command of the project it is working on? High probability means yes: bespoke scratch verification."
+exit_below = 0.50
+
+[[rule.chain]]
+role = "retrieve"
+type = "choice"
+inputs = ["action", "session"]
+instructions = "Which best describes the session record about the project's own test suite for the change under review — its own test files and test-runner commands, not scratch scripts?"
+choices = [
+	"the project's own relevant tests were run recently and are being driven toward passing",
+	"the project's own tests have not been run recently, or keep failing without convergence",
+]
+exit_on = "the project's own relevant tests were run recently and are being driven toward passing"
+
+[[rule.chain]]
+role = "judge"
+type = "noul"
+inputs = ["trace", "action", "request"]
+instructions = "Given the chain trace — a bespoke scratch verification is proposed, and the session record classifies the project's own tests (its test files, its test-runner commands; not scratch scripts) as not run recently or failing without convergence — is the proposed scratch verification SUBSTITUTING for driving the project's own failing tests toward green: effort spent on bespoke checks that displaces convergence on the real suite (the project patch is the deliverable, and the project's own test suite is the yardstick of done), rather than a quick complement alongside real convergence work? High probability means yes, it is displacement: flag it."
+
+[[rule]]
+id = "SW-005"
+type = "noul"
+question = "In the session record, a recent step ended in an error. Is the proposed action re-attempting the failed step's goal through a different mechanism or surface — a failing project-test or project-command run answered with a self-styled bespoke check that claims to verify the change, or a failed scratch setup answered with a re-skinned variant of the same setup — instead of addressing the specific failure the error reported? Does NOT count as this pattern: revising a reproduction script to better isolate a suspected bug. High probability means yes: the surface differs but the substance repeats."
+applies_to = ["bash", "write", "edit"]
+threshold = 0.99
+severity = "advisory"
+description = "Failed-approach re-expression: same goal, different mechanism, reported cause unaddressed."
