@@ -1,3 +1,5 @@
+# This harness is not meant for real work it is just a tech demo/proof of concept. DO NOT TRUST THIS WITH YOUR WORK
+
 # ψ (psi) — a rule-interception layer for coding agents
 
 **ψ is a fork of [tau](https://github.com/huggingface/tau) (the minimalist
